@@ -1,0 +1,537 @@
+---
+title: "Swap2and3 Search Test Analysis"
+subtitle: "Draft"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+author:
+- <a href = 'https://meta.wikimedia.org/wiki/User:EBernhardson_(WMF)'>Erik Bernhardson</a> (Engineering)
+- <a href = 'https://meta.wikimedia.org/wiki/User:TJones_(WMF)'>Trey Jones</a> (Engineering & Review)
+- <a href = 'https://meta.wikimedia.org/wiki/User:MPopov_(WMF)'>Mikhail Popov</a> (Review)
+- <a href = 'https://meta.wikimedia.org/wiki/User:DTankersley_(WMF)'>Deb Tankersley</a> (Product Management)
+- <a href = 'https://meta.wikimedia.org/wiki/User:CXie_(WMF)'>Chelsy Xie</a> (Analysis & Report)
+abstract: >
+  Wikimedia Engineering’s Discovery Search team ran an A/B test from April 7 to April 25, 2016 to see how much our users care about the position of the result vs the actual content of the result by swapping the second and third search results. We find that position 2 has a higher clickthrough rate than position 3 in both groups, but the clickthrough rate of third results in the test group is higher than that in the control group. We also find that test group users are less likely to click on the second result first than the control group, while they are more likely to click on the third result first. Based on these analysis results, we think that both position and quality matter in user behavior, but with different weights. Further experiments are needed to figure out the quantitative relationship between user behavior and these two factors.
+output:
+  html_document:
+    includes:
+      after_body: suffix.html
+    code_folding: hide
+    css: style.css
+    fig_caption: yes
+    fig_width: 10
+    fig_height: 6
+    highlight: zenburn
+    keep_md: yes
+    mathjax: https://tools-static.wmflabs.org/cdnjs/ajax/libs/mathjax/2.6.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+    md_extensions: +raw_html +markdown_in_html_blocks +tex_math_dollars +fancy_lists +startnum +lists_without_preceding_blankline +footnotes +implicit_header_references
+    self_contained: no
+    theme: flatly
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+  pdf_document:
+    citation_package: natbib
+    fig_height: 6
+    fig_width: 10
+    keep_tex: yes
+    latex_engine: xelatex
+    template: svm-latex-ms.tex
+link-citations: yes
+nocite: |
+  @R-rmarkdown, @R-magrittr, @R-tidyr, @R-dplyr, @R-ggplot2, @R-wmf
+fontsize: 11pt
+geometry: margin=1in
+header-includes:
+  - \usepackage{floatrow}
+  - \floatsetup[table]{capposition=bottom}
+---
+```{js, echo = FALSE}
+$(function() {
+  /* Lets the user click on the images to view them in full resolution. */
+  $("div.figure img").wrap(function() {
+    var link = $('<a/>');
+    link.attr('href', $(this).attr('src'));
+    link.attr('title', $(this).attr('alt'));
+    link.attr('target', '_blank');
+    return link;
+  });
+  $("p.abstract").text("Executive Summary");
+  $("div#wmf").wrap('<a href="https://wikimediafoundation.org/" />');
+});
+```
+
+```{r setup, include=FALSE}
+set.seed(0); options(digits = 3, scipen = 500)
+library(tidyverse)
+library(binom)
+library(cowplot)
+library(magrittr)
+library(knitr)
+library(kableExtra)
+if (!"printr" %in% installed.packages()[, "Package"]) {
+  install.packages("printr", type = "source", repos = c("Yihui Xie" = "http://yihui.name/xran", CRAN = "http://cran.rstudio.com"))
+} else {
+  loadNamespace("printr")
+}
+is_html <- function() {
+  if (length(opts_knit$get("rmarkdown.pandoc.to")) > 0) {
+    return(opts_knit$get("rmarkdown.pandoc.to") == "html")
+  } else {
+    return(FALSE)
+  }
+}
+if (is_html()) {
+  options(knitr.table.format = "html")
+} else {
+  options(knitr.table.format = "latex")
+}
+opts_chunk$set(
+  echo = is_html(), warning = FALSE, message = FALSE,
+  out.width='\\textwidth', dev = 'png', fig.ext = 'png',
+  dpi = ifelse(is_html(), 150, 300)
+)
+path <- function(x) {
+  if (grepl("docs", getwd(), fixed = TRUE)) {
+    return(file.path("..", x))
+  } else {
+    return(x)
+  }
+}
+fable <- function(x, caption = NULL, ...) {
+  if (is_html()) {
+    return({
+      kable(x, caption = caption, booktabs = TRUE) %>%
+      kable_styling(bootstrap_options = c("striped", "hover"), ...)
+    })
+  } else {
+    return(kable(x, caption = caption, ...))
+  }
+}
+```
+
+```{r captions, include=FALSE}
+# Manual figure & table captioning:
+library(captioner) # install.packages("captioner")
+table_caps <- captioner(prefix = "Table")
+figure_caps <- captioner(prefix = "Figure")
+code_caps <- captioner(prefix = "Snippet")
+# Custom caption formatting and printing:
+format_caption <- function(caps, name) {
+  return({
+    sub(caps(name, display = "cite"),
+      paste0(ifelse(is_html(), "**", "\\textbf{"), caps(name, display = "cite"), ifelse(is_html(), "**", "}")),
+      caps(name, display = "full"), fixed = TRUE) %>%
+    sub("  ", " ", ., fixed = TRUE)
+  })
+}
+print_caption <- function(formatted_caption) {
+  cat(paste0('<p class = "caption">', formatted_caption, '</p>', collapse = ''))
+}
+# Add captions:
+table_caps(name = "Event Counts", caption = "Number of search sessions and events used for analysis by group. Each search session may have several individual searches.")
+table_caps(name = "Deduped Event Counts", caption = "Number of searches and events used for analysis by group after de-duplication. Each search session may have several individual searches.")
+figure_caps(name = "CTR Overall", caption = "Proportion of sessions or searches that include at least one click/visitPage event by group.")
+figure_caps(name = "CTR by Position", caption = "Proportion of sessions or searches that include at least one click/visitPage event by position and group.")
+figure_caps(name = "First Clicked Position", caption = "Proportion of searches that clicked a result first by position and group.")
+figure_caps(name = "Overall Dwell Time", caption = "Survival curves with 95% confidence interval on visited pages after users click through, broken up by group. This shows the length of time that must pass before we lose 1-P% of the population. For example, it appears we have 80% of control group users stayed on visited pages by 10s.")
+figure_caps(name = "Dwell Time by Position", caption = "Survival curves with 95% confidence interval on visited pages after users click through, broken up by position and group.")
+figure_caps(name = "Scroll Overall", caption = "Proportion of visits with scroll by group.")
+figure_caps(name = "Scroll by Position", caption = "Proportion of visits with scroll by position and group.")
+```
+
+```{r links, echo=FALSE, results='asis'}
+if (is_html()) {
+  cat('<p>{ <a href="https://github.com/wikimedia-research/Discovery-Search-Test-Swap2and3/blob/master/docs/index.Rmd">RMarkdown Source</a> | <a href="https://github.com/wikimedia-research/Discovery-Search-Test-Swap2and3">Analysis Codebase</a> }</p>')
+} else {
+  cat('\\let\\thefootnote\\relax\\footnote{Source code and data are available on GitHub (\\href{https://github.com/wikimedia-research/Discovery-Search-Test-Swap2and3}{wikimedia-research/Discovery-Search-Test-Swap2and3})}')
+}
+```
+```{r data, cache=TRUE, include=FALSE}
+load(path("swap2and3.RData")) 
+data1 <- data[data$timestamp < '20160426000000',]
+data1 <- data1 %>% filter(event_subTest == 'swap2and3' | is.na(event_subTest))
+```
+
+## Data
+```{r clean-up}
+data1 <- data1 %>% filter(
+  (event_action == 'searchResultPage' & !is.na(event_hitsReturned)) |
+  (event_action == 'click' & !is.na(event_position) & event_position > -1) |
+  (event_action == 'visitPage' & !is.na(event_pageViewId)) |
+  (event_action == 'checkin' & !is.na(event_checkin) & !is.na(event_pageViewId))
+)
+data1$event_subTest[is.na(data1$event_subTest)] <- "Control"
+data1 <- data1[!duplicated(data1$id), ]
+data1$date <- lubridate::ymd(substr(data1$timestamp, 1,8))
+data1 <- data1 %>%
+  group_by(date, event_subTest, event_mwSessionId, event_searchSessionId) %>%
+  filter("searchResultPage" %in% event_action) %>%
+  ungroup %>% as.data.frame() # remove search_id without SERP asscociated
+## 6474 out of 301603 search sessions fall into both control and test group... Delete those sessions
+temp <- data1 %>% group_by(event_searchSessionId) %>% summarise(count=length(unique(event_subTest)))
+data1 <- data1[data1$event_searchSessionId %in% temp$event_searchSessionId[temp$count==1], ]; rm(temp)
+```
+
+We ran this test from April 7 - April 25, 2016. Only full text search results were affected by this test. Around half of the traffic was put into the test group randomly, where we swapped their second and third search results. The rest of the traffic was seen as control group. We collected a total of `r polloi::compress(nrow(data1), 1)` events from `r polloi::compress(length(unique(data1$event_searchSessionId)), 1)` unique sessions.
+```{r data_summary1, echo=FALSE}
+data_summary <- data1 %>%
+  group_by(`Test group` = event_subTest) %>%
+  summarize(`Search sessions` = length(unique(event_searchSessionId)), `Events recorded` = n()) %>% ungroup %>%
+  {
+    rbind(., tibble(
+      `Test group` = "Total",
+      `Search sessions` = sum(.$`Search sessions`),
+      `Events recorded` = sum(.$`Events recorded`)
+    ))
+  } %>%
+  mutate(`Search sessions` = prettyNum(`Search sessions`, big.mark = ","),
+         `Events recorded` = prettyNum(`Events recorded`, big.mark = ","))
+fable(data_summary, format_caption(table_caps, "Event Counts"))
+```
+
+As in [another A/B test analysis](https://wikimedia-research.github.io/Discovery-Search-Test-BM25/#serp_de-duplication) we did before, there is an issue with the event logging that when a user goes to the next page of search results or clicks the Back button after visiting a search result, a new page ID is generated for the search results page. The page ID is how we connect click events to search result page events. For this analysis, we de-duplicated by connecting search engine results page (searchResultPage) events that have the exact same search query, and then connected click events together based on the searchResultPage connectivity.
+
+```{r deduplication}
+# De-duplication
+temp <- data1 %>%
+  filter(event_action == "searchResultPage") %>%
+  group_by(event_mwSessionId, event_searchSessionId, event_query) %>%
+  mutate(new_page_id = min(event_pageViewId)) %>%
+  ungroup %>%
+  select(c(event_pageViewId, new_page_id)) %>%
+  distinct
+data1 <- left_join(data1, temp, by = "event_pageViewId"); rm(temp)
+data1$new_page_id[is.na(data1$new_page_id)] <- data1$event_pageViewId[is.na(data1$new_page_id)] 
+temp <- data1 %>%
+  filter(event_action == "searchResultPage") %>%
+  arrange(new_page_id, timestamp) %>%
+  mutate(dupe = duplicated(new_page_id, fromLast = FALSE)) %>%
+  select(c(id, dupe))
+data1 <- left_join(data1, temp, by = "id"); rm(temp)
+data1$dupe[data1$event_action != "searchResultPage"] <- FALSE
+data1 <- data1[!data1$dupe & !is.na(data1$new_page_id), ] %>%
+  select(-c(event_pageViewId, dupe)) %>%
+  rename(page_id = new_page_id) %>%
+  arrange(date, event_mwSessionId, event_searchSessionId, page_id, desc(event_action), timestamp)
+# Summarize on a page-by-page basis for each SERP:
+searches <- data1 %>%
+  group_by(`test group` = event_subTest, event_mwSessionId, event_searchSessionId, page_id) %>%
+  filter("searchResultPage" %in% event_action) %>% # keep only searchResultPage and click
+  summarize(timestamp = timestamp[1], 
+            results = ifelse(event_hitsReturned[1] > 0, "some", "zero"),
+            clickthrough = "click" %in% event_action,
+            `no. results clicked` = length(unique(event_position))-1,
+            `first clicked result's position` = ifelse(clickthrough, na.omit(event_position)[1][1], NA), #There are some search with click, but position is NA
+            `Clicked on position 2` = 2 %in% event_position,
+            `Clicked on position 3` = 3 %in% event_position
+            ) %>%
+  arrange(timestamp)
+```
+After de-duplication, we collapsed `r polloi::compress(data_summary[3,3], 2)` events into `r polloi::compress(nrow(data1), 2)` events and `r polloi::compress(nrow(searches), 1)` searches.
+```{r search_summary, echo = FALSE}
+# Summary Table
+events_summary2 <- data1 %>%
+  group_by(`Test group` = event_subTest) %>%
+  summarize(`Search sessions` = length(unique(event_searchSessionId)), `Events recorded` = n()) %>% ungroup %>%
+  {
+    rbind(., tibble(
+      `Test group` = "Total",
+      `Search sessions` = sum(.$`Search sessions`),
+      `Events recorded` = sum(.$`Events recorded`)
+    ))
+  } %>%
+  mutate(`Search sessions` = prettyNum(`Search sessions`, big.mark = ","),
+         `Events recorded` = prettyNum(`Events recorded`, big.mark = ","))
+searches_summary <- searches %>%
+  group_by(`Test group` = `test group`) %>%
+  summarize(`Search sessions` = length(unique(event_searchSessionId)), `Searches recorded` = n()) %>% ungroup %>%
+  {
+    rbind(., tibble(
+      `Test group` = "Total",
+      `Search sessions` = sum(.$`Search sessions`),
+      `Searches recorded` = sum(.$`Searches recorded`)
+    ))
+  } %>%
+  mutate(`Search sessions` = prettyNum(`Search sessions`, big.mark = ","),
+         `Searches recorded` = prettyNum(`Searches recorded`, big.mark = ","))
+fable(inner_join(searches_summary, events_summary2, by=c("Test group", "Search sessions")), 
+      format_caption(table_caps, "Deduped Event Counts"))
+```
+
+```{r visitpage}
+# Summarize on a page-by-page basis for each visitPage:
+clickedResults <- data1 %>%
+  group_by(test_group = event_subTest, event_mwSessionId, event_searchSessionId, page_id) %>%
+  filter("visitPage" %in% event_action) %>% #only checkin and visitPage action
+  summarize(timestamp = timestamp[1], 
+            position = na.omit(event_position)[1][1],
+            dwell_time=ifelse("checkin" %in% event_action, max(event_checkin, na.rm=T), 0),
+            scroll=sum(event_scroll)>0) %>%
+  arrange(timestamp)
+clickedResults$dwell_time[is.na(clickedResults$dwell_time)] <- 0
+# 74148 clickedResults
+clickedResults$status <- ifelse(clickedResults$dwell_time=="420", 1, 2)
+```
+
+Last but not least, it is worth noting that there are some issues in our data collecting process:
+
+* Sometimes click events were not recorded while visitPage events were. This problem was solved in June 2016 by [T137262](https://phabricator.wikimedia.org/T137262). For this analysis, we treat both click event and visitPage event as a "click" when computing clickthrough rate, i.e. if there is either a click or a visitPage event in a session, we will say there is a clickthrough in that session.
+* There were 6474 out of 301,603 search sessions falling into both control and test buckets. We deleted those sessions in the data cleansing step.
+
+## Results
+
+### Engagement
+Firstly, we compare the overall clickthrough rate between control and test group. We've checked that there is no significant difference in zero results rate between these two groups. The plot below shows that for each session, the control group has a significantly higher engagement rate; for each SERP, the test group has higher engagement, but the difference is not significant.
+```{r engagement_overall_caption, include=FALSE}
+ctr_all_cap <- format_caption(figure_caps, "CTR Overall")
+```
+```{r engagement_overall, fig.cap=ctr_all_cap}
+# Compare overall CTR
+# per session:
+engagement_overall_session <- data1 %>% 
+  group_by(event_subTest, event_searchSessionId) %>%
+  summarise(clickthrough = "click" %in% event_action|"visitPage" %in% event_action, results = sum(event_hitsReturned, na.rm=TRUE) > 0) %>%
+  filter(results == TRUE) %>%
+  group_by(event_subTest) %>%
+  summarise(clicks = sum(clickthrough), session = n()) %>%
+  cbind(binom:::binom.bayes(.$clicks, n=.$session)[, c("mean", "lower", "upper")]) 
+  #knitr::kable(engagement_overall_session, format = "markdown", align = c("l", "r", "r", "r", "r", "r"))
+
+# per SERP:
+engagement_overall_serp <- searches %>%
+  filter(results == "some") %>%
+  group_by(`test group`) %>%
+  summarise(clicks = sum(clickthrough), searches = n()) %>%
+  cbind(binom:::binom.bayes(.$clicks, n=.$searches, tol=.Machine$double.eps^0.6)[, c("mean", "lower", "upper")])
+  #knitr::kable(engagement_overall_serp, format = "markdown", align = c("l", "r", "r", "r", "r", "r"))
+
+# plot
+p_ctr_ses <- engagement_overall_session %>%
+  ggplot(aes(x = 1, y = mean, color = event_subTest)) +
+  geom_pointrange(aes(ymin = lower, ymax = upper), position = position_dodge(width = 1)) +
+  scale_color_brewer("Test Group", palette = "Set1", guide = guide_legend(ncol = 2)) +
+  scale_y_continuous(labels = scales::percent_format(), expand = c(0.01, 0.01)) +
+  labs(x = NULL, y = "Clickthrough rate",
+       title = "Proportion of sessions that include \n at least one click/visitPage event") +
+  geom_text(aes(label = sprintf("%.1f%%", 100 * mean), y = upper + 0.0025, vjust = "bottom"),
+            position = position_dodge(width = 1)) +
+  theme(legend.position = "bottom")
+p_ctr_serp <- engagement_overall_serp %>%
+  ggplot(aes(x = 1, y = mean, color = `test group`)) +
+  geom_pointrange(aes(ymin = lower, ymax = upper), position = position_dodge(width = 1)) +
+  scale_color_brewer("Test Group", palette = "Set1", guide = guide_legend(ncol = 2)) +
+  scale_y_continuous(labels = scales::percent_format(), expand = c(0.01, 0.01)) +
+  labs(x = NULL, y = "Clickthrough rate",
+       title = "Proportion of SERPs that include \n at least one click event") +
+  geom_text(aes(label = sprintf("%.1f%%", 100 * mean), y = upper + 0.0025, vjust = "bottom"),
+            position = position_dodge(width = 1)) +
+  theme(legend.position = "bottom")
+plot_grid(p_ctr_ses, p_ctr_serp)
+```
+
+Next, we compare the clickthrough rates in second and third position by test groups. All the differences in the graph below are significant. In both control and test groups, the clickthrough rates in position 2 are higher than position 3. When comparing the same position between groups, the engagement of the 3rd results in the test group is higher than that in the control group, but it is not as high as its counterpart, the 2nd results in the control group. 
+
+```{r engagement_2and3_caption, include=FALSE}
+ctr_pos_cap <- format_caption(figure_caps, "CTR by Position")
+```
+```{r engagement_2and3, fig.cap = ctr_pos_cap}
+# Compare position 2 and 3
+# per session, among all nonzero result session:
+engagement_2and3_session <- data1 %>% 
+  group_by(event_subTest, event_searchSessionId) %>%
+  summarise(clickthrough2 = 2 %in% event_position, clickthrough3 = 3 %in% event_position, 
+            clickthrough = "click" %in% event_action|"visitPage" %in% event_action, results = sum(event_hitsReturned, na.rm=TRUE) > 0) %>%
+  filter(results == TRUE) %>%
+  group_by(event_subTest) %>%
+  summarise(clicked2 = sum(clickthrough2), clicked3 = sum(clickthrough3), session = n()) %>%
+  cbind(binom:::binom.bayes(.$clicked2, n=.$session)[, c("mean", "lower", "upper")]) %>%
+  rename(ctr2 = mean, lower2 = lower, upper2 = upper) %>%
+  cbind(binom:::binom.bayes(.$clicked3, n=.$session)[, c("mean", "lower", "upper")]) %>%
+  rename(ctr3 = mean, lower3 = lower, upper3 = upper)
+# per SERP, among all nonzero result session:
+engagement_2and3_serp <- searches %>%
+  filter(results == "some") %>%
+  group_by(`test group`) %>%
+  summarise(clicked2 = sum(`Clicked on position 2`), clicked3 = sum(`Clicked on position 3`), searches = n()) %>%
+  cbind(binom:::binom.bayes(.$clicked2, n=.$searches, tol=.Machine$double.eps^0.7)[, c("mean", "lower", "upper")]) %>%
+  rename(ctr2 = mean, lower2 = lower, upper2 = upper) %>%
+  cbind(binom:::binom.bayes(.$clicked3, n=.$searches, tol=.Machine$double.eps^0.7)[, c("mean", "lower", "upper")]) %>%
+  rename(ctr3 = mean, lower3 = lower, upper3 = upper)
+
+# plot
+p_ctr23_ses <- engagement_2and3_session[, c("ctr2", "lower2", "upper2")] %>%
+  rbind(setNames(engagement_2and3_session[, c("ctr3", "lower3", "upper3")], names(.))) %>%
+  mutate(`test group` = c("Control_position2", "swap2and3_position2", "Control_position3", "swap2and3_position3")) %>%
+  ggplot(aes(x = 1, y = ctr2, color = `test group`)) +
+  geom_pointrange(aes(ymin = lower2, ymax = upper2), position = position_dodge(width = 1)) +
+  scale_color_brewer("Test Group", palette = "Set1", guide = guide_legend(ncol = 2)) +
+  scale_y_continuous(labels = scales::percent_format(), expand = c(0.01, 0.01)) +
+  labs(x = NULL, y = "Clickthrough rate",
+       title = "Proportion of sessions that include \n at least one click/visitPage event in position x") +
+  geom_text(aes(label = sprintf("%.1f%%", 100 * ctr2), y = upper2 + 0.0025, vjust = "bottom"),
+            position = position_dodge(width = 1)) +
+  theme(legend.position = "bottom")
+p_ctr23_serp <- engagement_2and3_serp[, c("ctr2", "lower2", "upper2")] %>%
+  rbind(setNames(engagement_2and3_serp[, c("ctr3", "lower3", "upper3")], names(.))) %>%
+  mutate(`test group` = c("Control_position2", "swap2and3_position2", "Control_position3", "swap2and3_position3")) %>%
+  ggplot(aes(x = 1, y = ctr2, color = `test group`)) +
+  geom_pointrange(aes(ymin = lower2, ymax = upper2), position = position_dodge(width = 1)) +
+  scale_color_brewer("Test Group", palette = "Set1", guide = guide_legend(ncol = 2)) +
+  scale_y_continuous(labels = scales::percent_format(), expand = c(0.01, 0.01)) +
+  labs(x = NULL, y = "Clickthrough rate",
+       title = "Proportion of SERPs that include \n at least one click event in position x") +
+  geom_text(aes(label = sprintf("%.1f%%", 100 * ctr2), y = upper2 + 0.0025, vjust = "bottom"),
+            position = position_dodge(width = 1)) +
+  theme(legend.position = "bottom")
+par(mar=c(1,1,1,1), oma=c(1,1,1,1))
+plot_grid(p_ctr23_ses, p_ctr23_serp)
+```
+
+### First Clicked Result’s Position
+
+We can see that test group users are less likely to click on the second result first than the control group, while they are more likely to click on the third result first. There is no significant difference in other positions. 
+
+```{r first_clicked_caption, include=FALSE}
+first_clicked_cap <- format_caption(figure_caps, "First Clicked Position")
+```
+```{r first_clicked, fig.cap=first_clicked_cap}
+safe_ordinals <- function(x) {
+  return(vapply(x, toOrdinal::toOrdinal, ""))
+}
+first_clicked <- searches %>%
+  filter(results == "some" & clickthrough & !is.na(`first clicked result's position`)) %>%
+  mutate(`first clicked result's position` = ifelse(`first clicked result's position` < 5, safe_ordinals(`first clicked result's position`), "5th or higher")) %>%
+  group_by(`test group`, `first clicked result's position`) %>%
+  tally %>%
+  mutate(total = sum(n), prop = n/total) %>%
+  ungroup
+temp <- as.data.frame(binom:::binom.bayes(first_clicked$n, n = first_clicked$total)[, c("mean", "lower", "upper")])
+first_clicked <- cbind(first_clicked, temp); rm(temp)
+first_clicked %>%
+  ggplot(aes(x = 1, y = mean, color = `test group`)) +
+  geom_pointrange(aes(ymin = lower, ymax = upper), position = position_dodge(width = 1)) +
+  geom_text(aes(label = sprintf("%.1f", 100 * prop), y = upper + 0.0025, vjust = "bottom"),
+            position = position_dodge(width = 1)) +
+  scale_y_continuous(labels = scales::percent_format(),
+                     expand = c(0, 0.005), breaks = seq(0, 1, 0.01)) +
+  scale_color_brewer("Test Group", palette = "Set1", guide = guide_legend(ncol = 2)) +
+  facet_wrap(~ `first clicked result's position`, scale = "free_y", nrow = 1) +
+  labs(x = NULL, y = "Proportion of searches",
+       title = "Position of the first clicked result",
+       subtitle = "With 95% credible intervals") +
+  theme(legend.position = "bottom",
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank(),
+        strip.background = element_rect(fill = "gray90"),
+        panel.border = element_rect(color = "gray30", fill = NA))
+```
+
+### Dwell Time per Visited Page
+
+First we compare the overall survival curves between the two groups. We find that the test group users are significantly more likely to stay longer on visited pages. 
+
+```{r dwelltime_overall_caption, include=FALSE}
+dwelltime_overall_cap <- format_caption(figure_caps, "Overall Dwell Time")
+```
+```{r dwelltime_overall, fig.cap=dwelltime_overall_cap}
+# Compare overall dwell time 
+temp <- clickedResults
+temp$SurvObj <- with(temp, survival::Surv(dwell_time, status == 2))
+fit_all <- survival::survfit(SurvObj ~ test_group, data = temp)
+survminer::ggsurvplot(fit_all, conf.int = TRUE, xlab="T (Dwell Time in seconds)", ylab="Proportion of visits longer than T (P%)", 
+                      surv.scale = "percent", palette="Set1", legend="bottom", legend.title = "Test Group", legend.labs=c("Control","swap2and3"))
+rm(temp)
+```
+
+Next we compare the survival curves for users who clicked on the second or third result. We can see that users in the test group who clicked on the 3rd result have a longer dwell time than others, but the difference is not significant.
+
+```{r dwelltime_2and3_caption, include=FALSE}
+dwelltime_2and3_cap <- format_caption(figure_caps, "Dwell Time by Position")
+```
+```{r dwelltime_2and3, fig.cap=dwelltime_2and3_cap}
+temp <- clickedResults %>% filter(position %in% c(2,3)) %>%
+  mutate(Test_Group = paste(test_group, paste0("position",position), sep="_"))
+temp$SurvObj <- with(temp, survival::Surv(dwell_time, status == 2))
+fit_2and3 <- survival::survfit(SurvObj ~ Test_Group, data = temp)
+survminer::ggsurvplot(fit_2and3, conf.int = TRUE, xlab="T (Dwell Time in seconds)", ylab="Proportion of visits longer than T (P%)", 
+                      surv.scale = "percent", palette="Set1", legend="bottom", legend.title = "Test Group",
+                      legend.labs=c("Control_position2","Control_position3","swap2and3_position2","swap2and3_position3"))
+rm(temp)
+```
+
+### Scroll
+
+We find that users in the test group are significantly more likely to scroll on the visited page.
+
+```{r scroll_overall_caption, include=FALSE}
+scroll_overall_cap <- format_caption(figure_caps, "Scroll Overall")
+```
+```{r scroll_overall, fig.cap=scroll_overall_cap}
+# Compare overall scroll proportion
+scroll_overall <- clickedResults %>%
+  group_by(test_group) %>%
+  summarize(scrolls=sum(scroll), visits=n(), proportion = sum(scroll)/n()) %>%
+  ungroup
+scroll_overall <- cbind(
+  scroll_overall,
+  as.data.frame(
+    binom:::binom.bayes(
+      scroll_overall$scrolls,
+      n = scroll_overall$visits)[, c("mean", "lower", "upper")]
+  )
+)
+scroll_overall %>%
+  ggplot(aes(x = 1, y = mean, color = test_group)) +
+  geom_pointrange(aes(ymin = lower, ymax = upper), position = position_dodge(width = 1)) +
+  scale_color_brewer("Test Group", palette = "Set1", guide = guide_legend(ncol = 2)) +
+  scale_y_continuous(labels = scales::percent_format(), expand = c(0.01, 0.01)) +
+  labs(x = NULL, y = "Proportion of visits",
+       title = "Proportion of visits with scroll by test group") +
+  geom_text(aes(label = sprintf("%.1f%%", 100 * proportion), y = upper + 0.0025, vjust = "bottom"),
+            position = position_dodge(width = 1)) +
+  theme(legend.position = "bottom")
+```
+
+Users in the test group who clicked on the 3rd result are significantly more likely to scroll on the visited pages than those who clicked on the 3rd result in the control group. But the differences are not significant in the 2nd result comparison and in the within-group comparisons.
+
+```{r scroll_2and3_caption, include=FALSE}
+scroll_2and3_cap <- format_caption(figure_caps, "Scroll by Position")
+```
+```{r scroll_2and3, fig.cap=scroll_2and3_cap}
+# Compare position 2 and 3
+scroll_2and3 <- clickedResults %>%
+  filter(position %in% c(2,3)) %>%
+  mutate(`Test Group` = paste(test_group, paste0("position",position), sep="_")) %>%
+  group_by(`Test Group`) %>%
+  summarize(scrolls=sum(scroll), visits=n(), proportion = sum(scroll)/n()) %>%
+  ungroup
+scroll_2and3 <- cbind(
+  scroll_2and3,
+  as.data.frame(
+    binom:::binom.bayes(
+      scroll_2and3$scrolls,
+      n = scroll_2and3$visits)[, c("mean", "lower", "upper")]
+  )
+)
+scroll_2and3 %>%
+  ggplot(aes(x = 1, y = mean, color = `Test Group`)) +
+  geom_pointrange(aes(ymin = lower, ymax = upper), position = position_dodge(width = 1)) +
+  scale_color_brewer("Test Group", palette = "Set1", guide = guide_legend(ncol = 2)) +
+  scale_y_continuous(labels = scales::percent_format(), expand = c(0.01, 0.01)) +
+  labs(x = NULL, y = "Proportion of visits",
+       title = "Proportion of visits with scroll by test group") +
+  geom_text(aes(label = sprintf("%.1f%%", 100 * proportion), y = upper + 0.0025, vjust = "bottom"),
+            position = position_dodge(width = 1)) +
+  theme(legend.position = "bottom")
+```
+
+## Discussion
+
+Overall, we find that the user engagement goes down by swapping the second and the third search results. Position 2 has a higher clickthrough rate than position 3 in both groups. But when comparing the same position between groups, the clickthrough rate of third results in the test group is higher and the clickthrough rate of second results in the test group is lower. We also find that test group users are less likely to click on the second result first than the control group, while they are more likely to click on the third result first. Based on these analysis results, we believe that it is not an either/or situation with position (order displayed) and “quality” (as determined by Cirrus). We think that both position and quality matter in user behavior, but with different weights. [Further experiments](https://phabricator.wikimedia.org/T167824) are needed to figure out the quantitative relationship between user behavior and these two factors.
+
+It seems a little bit counter intuitive that the group with a lower engagement rate tends to stay longer and is more likely to scroll on the visited page, and we saw a similar case in [another test](https://wikimedia-research.github.io/Discovery-Search-2ndTest-BM25_jazhth) before. This may be a case of the [self-selection bias](https://en.wikipedia.org/wiki/Self-selection_bias) that users who click through in a probably less relevant group -- the test group -- may be different from users who click through in the control group in motivation, experience or other factors. Further research is needed.
+
+Additionally, instead of making explicit control buckets, we simply treat those users who didn't get assigned to the test group as control group users. We suspect that this behavior results in putting all users who don't have the new javascript into the control group automatically, so some metrics may be biased.
+

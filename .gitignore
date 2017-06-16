@@ -1,0 +1,15 @@
+.Rproj.user
+.Rhistory
+*.RData
+.Ruserdata
+data
+*.rds
+*.tsv
+docs/index_cache
+docs/index.md
+pdf/*cache
+pdf/figure
+pdf/*files
+data_remote.R
+report_draft.Rmd
+report_draft.html
