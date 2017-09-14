@@ -1,6 +1,5 @@
 ---
 title: "Swap2and3 Search Test Analysis"
-subtitle: "Draft"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 author:
 - <a href = 'https://meta.wikimedia.org/wiki/User:EBernhardson_(WMF)'>Erik Bernhardson</a> (Engineering)
@@ -227,7 +226,7 @@ searches <- data1 %>%
             ) %>%
   arrange(timestamp)
 ```
-After de-duplication, we collapsed `r polloi::compress(data_summary[3,3], 2)` events into `r polloi::compress(nrow(data1), 2)` events and `r polloi::compress(nrow(searches), 1)` searches.
+After de-duplication, we collapsed `r polloi::compress(1158618, 2)` events into `r polloi::compress(nrow(data1), 2)` events and `r polloi::compress(nrow(searches), 1)` searches.
 ```{r search_summary, echo = FALSE}
 # Summary Table
 events_summary2 <- data1 %>%
@@ -373,7 +372,7 @@ p_ctr23_ses <- engagement_2and3_session[, c("ctr2", "lower2", "upper2")] %>%
   theme(legend.position = "bottom")
 p_ctr23_serp <- engagement_2and3_serp[, c("ctr2", "lower2", "upper2")] %>%
   rbind(setNames(engagement_2and3_serp[, c("ctr3", "lower3", "upper3")], names(.))) %>%
-  mutate(`test group` = c("Control - 2nd result)", "swap2and3 - 2nd result", "Control - 3rd result", "swap2and3 - 3rd result")) %>%
+  mutate(`test group` = c("Control - 2nd result", "swap2and3 - 2nd result", "Control - 3rd result", "swap2and3 - 3rd result")) %>%
   ggplot(aes(x = 1, y = ctr2, color = `test group`)) +
   geom_pointrange(aes(ymin = lower2, ymax = upper2), position = position_dodge(width = 1)) +
   scale_color_brewer("Test Group", palette = "Set1", guide = guide_legend(ncol = 2)) +
