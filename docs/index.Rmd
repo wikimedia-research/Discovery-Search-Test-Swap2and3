@@ -1,33 +1,18 @@
 ---
 title: "Swap2and3 Search Test Analysis"
-date: "`r format(Sys.Date(), '%d %B %Y')`"
 author:
-- <a href = 'https://meta.wikimedia.org/wiki/User:EBernhardson_(WMF)'>Erik Bernhardson</a> (Engineering)
-- <a href = 'https://meta.wikimedia.org/wiki/User:TJones_(WMF)'>Trey Jones</a> (Engineering & Review)
-- <a href = 'https://meta.wikimedia.org/wiki/User:MPopov_(WMF)'>Mikhail Popov</a> (Review)
-- <a href = 'https://meta.wikimedia.org/wiki/User:DTankersley_(WMF)'>Deb Tankersley</a> (Product Management)
-- <a href = 'https://meta.wikimedia.org/wiki/User:CXie_(WMF)'>Chelsy Xie</a> (Analysis & Report)
-abstract: >
-  Wikimedia Technology’s Search Platform team ran an A/B test from April 7 to April 25, 2016 to see how much our users care about the position of the result vs the actual content of the result by swapping the second and third search results. We found that position 2 had a higher clickthrough rate than position 3 in both groups, but the clickthrough rate of the 3rd result was higher in the test group than in the control group. We also found that test group users were less likely to click on the 2nd result first than the control group and were more likely to click on the 3rd result first. Based on the resultsof this analysis, we think that both position and quality matter in user behavior, but with different weights. Further experiments are needed to figure out the quantitative relationship between user behavior and these two factors.
+- affiliation: Senior Software Engineer, Wikimedia Foundation
+  name: Erik Bernhardson
+- affiliation: Senior Software Engineer, Wikimedia Foundation
+  name: Trey Jones
+- affiliation: Data Analyst, Wikimedia Foundation
+  name: Chelsy Xie
+- affiliation: Data Analyst, Wikimedia Foundation
+  name: Mikhail Popov
+- affiliation: Product Manager (Analysis, Search Frontend), Wikimedia Foundation
+  name: Deb Tankersley
+date: '`r format(Sys.Date(), "%d %B %Y")`'
 output:
-  html_document:
-    includes:
-      after_body: suffix.html
-    code_folding: hide
-    css: style.css
-    fig_caption: yes
-    fig_width: 10
-    fig_height: 6
-    highlight: zenburn
-    keep_md: yes
-    mathjax: https://tools-static.wmflabs.org/cdnjs/ajax/libs/mathjax/2.6.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML
-    md_extensions: +raw_html +markdown_in_html_blocks +tex_math_dollars +fancy_lists +startnum +lists_without_preceding_blankline +footnotes +implicit_header_references
-    self_contained: no
-    theme: flatly
-    toc: yes
-    toc_depth: 4
-    toc_float:
-      collapsed: no
   pdf_document:
     citation_package: natbib
     fig_height: 6
@@ -35,14 +20,36 @@ output:
     keep_tex: yes
     latex_engine: xelatex
     template: svm-latex-ms.tex
-link-citations: yes
-nocite: |
-  @R-rmarkdown, @R-magrittr, @R-tidyr, @R-dplyr, @R-ggplot2, @R-wmf
+  html_document:
+    code_folding: hide
+    css: style.css
+    fig_caption: yes
+    fig_height: 6
+    fig_width: 10
+    highlight: zenburn
+    includes:
+      after_body: suffix.html
+    keep_md: yes
+    mathjax: https://tools-static.wmflabs.org/cdnjs/ajax/libs/mathjax/2.6.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+    md_extensions: +raw_html +markdown_in_html_blocks +tex_math_dollars +fancy_lists
+      +startnum +lists_without_preceding_blankline +footnotes +implicit_header_references
+    self_contained: no
+    theme: flatly
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
 fontsize: 11pt
 geometry: margin=1in
 header-includes:
-  - \usepackage{floatrow}
-  - \floatsetup[table]{capposition=bottom}
+- \usepackage{floatrow}
+- \floatsetup[table]{capposition=bottom}
+link-citations: yes
+nocite: |
+  @R-rmarkdown, @R-magrittr, @R-tidyr, @R-dplyr, @R-ggplot2, @R-wmf, @R-binom, @R-survival
+bibliography: bibliography.bib
+abstract: |
+  Wikimedia Technology’s Search Platform team ran an A/B test from April 7 to April 25, 2016 to see how much our users care about the position of the result vs the actual content of the result by swapping the second and third search results. We found that position 2 had a higher clickthrough rate than position 3 in both groups, but the clickthrough rate of the 3rd result was higher in the test group than in the control group. We also found that test group users were less likely to click on the 2nd result first than the control group and were more likely to click on the 3rd result first. Based on the resultsof this analysis, we think that both position and quality matter in user behavior, but with different weights. Further experiments are needed to figure out the quantitative relationship between user behavior and these two factors.
 ---
 ```{js, echo = FALSE}
 $(function() {
@@ -151,7 +158,7 @@ data1 <- data[data$timestamp < '20160426000000',]
 data1 <- data1 %>% filter(event_subTest == 'swap2and3' | is.na(event_subTest))
 ```
 
-## Data
+# Data
 ```{r clean-up}
 data1 <- data1 %>% filter(
   (event_action == 'searchResultPage' & !is.na(event_hitsReturned)) |
@@ -275,15 +282,18 @@ clickedResults$status <- ifelse(clickedResults$dwell_time=="420", 1, 2)
 Last but not least, it is worth noting that there are some issues in our data collecting process:
 
 * Sometimes click events were not recorded while visitPage events were. This problem was solved in June 2016 by [T137262](https://phabricator.wikimedia.org/T137262). For this analysis, we treat both click event and visitPage event as a "click" when computing clickthrough rate, i.e. if there is either a click or a visitPage event in a session, we will say there is a clickthrough in that session.
+
 * There were 6474 out of 301,603 search sessions falling into both control and test buckets. We deleted those sessions in the data cleansing step.
 
-## Results
+# Results
 
-### Engagement
+## Engagement
 Firstly, we compared the overall clickthrough rate between control and test group. We've checked that there is no significant difference in zero results rate between these two groups. The plot below shows that for each session, the control group has a significantly higher engagement rate; for each search results page, the test group has higher engagement, but the difference is not significant.
+
 ```{r engagement_overall_caption, include=FALSE}
 ctr_all_cap <- format_caption(figure_caps, "CTR Overall")
 ```
+
 ```{r engagement_overall, fig.cap=ctr_all_cap}
 # Compare overall CTR
 # per session:
@@ -386,7 +396,7 @@ par(mar=c(1,1,1,1), oma=c(1,1,1,1))
 plot_grid(p_ctr23_ses, p_ctr23_serp)
 ```
 
-### First Clicked Result’s Position
+## First Clicked Result’s Position
 
 We can see that test group users were less likely to click on the second result first than the control group, while they were more likely to click on the third result first. There is no significant difference in other positions. 
 
@@ -427,21 +437,21 @@ first_clicked %>%
         panel.border = element_rect(color = "gray30", fill = NA))
 ```
 
-### Dwell Time per Visited Page
+## Dwell Time per Visited Page
 
 When we compared the overall survival curves between the two groups, we found that the test group users were significantly more likely to stay longer on visited pages.
 
 ```{r dwelltime_overall_caption, include=FALSE}
 dwelltime_overall_cap <- format_caption(figure_caps, "Overall Dwell Time")
 ```
-```{r dwelltime_overall, fig.cap=dwelltime_overall_cap}
+
+```{r dwelltime_overall, fig.cap=dwelltime_overall_cap, fig.height=6, fig.width=10, fig.align='center', out.width=NULL}
 # Compare overall dwell time 
 temp <- clickedResults
 temp$SurvObj <- with(temp, survival::Surv(dwell_time, status == 2))
 fit_all <- survival::survfit(SurvObj ~ test_group, data = temp)
 survminer::ggsurvplot(fit_all, conf.int = TRUE, xlab="T (Dwell Time in seconds)", ylab="Proportion of visits longer than T (P%)", 
                       surv.scale = "percent", palette="Set1", legend="bottom", legend.title = "Test Group", legend.labs=c("Control","swap2and3"))
-rm(temp)
 ```
 
 When we compared the survival curves for users who clicked on the second or third result, we found that users in the test group who clicked on the 3rd result have a longer dwell time than others, but the difference is not significant.
@@ -449,7 +459,8 @@ When we compared the survival curves for users who clicked on the second or thir
 ```{r dwelltime_2and3_caption, include=FALSE}
 dwelltime_2and3_cap <- format_caption(figure_caps, "Dwell Time by Position")
 ```
-```{r dwelltime_2and3, fig.cap=dwelltime_2and3_cap}
+
+```{r dwelltime_2and3, fig.cap=dwelltime_2and3_cap, fig.height=6, fig.width=10, fig.align='center', out.width=NULL}
 temp <- clickedResults %>% filter(position %in% c(2,3)) %>%
   mutate(Test_Group = paste0(test_group, "(position ", position, ")"))
 temp$SurvObj <- with(temp, survival::Surv(dwell_time, status == 2))
@@ -457,10 +468,9 @@ fit_2and3 <- survival::survfit(SurvObj ~ Test_Group, data = temp)
 survminer::ggsurvplot(fit_2and3, conf.int = TRUE, xlab="T (Dwell Time in seconds)", ylab="Proportion of visits longer than T (P%)", 
                       surv.scale = "percent", palette="Set1", legend="bottom", legend.title = "Test Group",
                       legend.labs=c("Control (position 2)","Control (position 3)","swap2and3 (position 2)","swap2and3 (position 3)"))
-rm(temp)
 ```
 
-### Scroll
+## Scroll
 
 We found that users in the test group were significantly more likely to scroll on the visited page.
 
@@ -526,10 +536,18 @@ scroll_2and3 %>%
   theme(legend.position = "bottom")
 ```
 
-## Discussion
+# Discussion
 
 Overall, we found that user engagement decreased by swapping the second and the third search results. Position 2 had a higher clickthrough rate than position 3 in both groups. However, when comparing the same position between groups the clickthrough rate of third results in the test group was higher and the clickthrough rate of second results in the test group was lower. We also found that test group users were less likely to click on the 2nd result first than the control group, while they are more likely to click on the 3rd result first. Based on these analysis results, we believe that it is not an either/or situation with position (order displayed) and “quality” (as determined by Cirrus). We suspect that *both* position *and* quality matter in user behavior, but with different weights. [Further experiments](https://phabricator.wikimedia.org/T167824) are needed to figure out the quantitative relationship between user behavior and these two factors.
 
 It seems a little bit counter intuitive that the group with a lower engagement rate tended to stay longer and was more likely to scroll on the visited page, but we saw a similar case in [another test](https://wikimedia-research.github.io/Discovery-Search-2ndTest-BM25_jazhth) before. This may be a case of the [self-selection bias](https://en.wikipedia.org/wiki/Self-selection_bias) that users who click through in a probably less relevant group -- the test group -- may be different from users who click through in the control group in motivation, experience or other factors. Further research is needed.
 
 Additionally, instead of making explicit control buckets, we simply treated those users who didn't get assigned to the test group as control group users. We suspect that this behavior resulted in us putting all users whose browsers had a cached version of event logging JavaScript into the control group automatically, so some metrics may be biased.
+
+```{r bibliograpby, results='asis', echo=FALSE}
+if (is_html()) {
+  cat("# References\n")
+} else {
+  cat("\\nocite{*}\n")
+}
+```

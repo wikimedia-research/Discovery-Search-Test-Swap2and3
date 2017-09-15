@@ -32,12 +32,12 @@ dl dd {
   margin-bottom: 50px;
 }
 
-div.footnotes {
+.footnotes {
   margin-bottom: 50px;
 }
 
 #wmf {
-	background-image: url('https://upload.wikimedia.org/wikipedia/commons/6/60/Wmf_logo_horiz_K.svg');
+	background-image: url('https://upload.wikimedia.org/wikipedia/commons/0/09/Wikimedia_Foundation_logo_-_horizontal.svg');
 	background-position: center center;
 	background-repeat: no-repeat;
 	vertical-align: middle;

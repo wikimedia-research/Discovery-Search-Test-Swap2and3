@@ -9,11 +9,6 @@
 <meta name="generator" content="pandoc" />
 
 
-<meta name="author" content="Erik Bernhardson (Engineering)" />
-<meta name="author" content="Trey Jones (Engineering &amp; Review)" />
-<meta name="author" content="Mikhail Popov (Review)" />
-<meta name="author" content="Deb Tankersley (Product Management)" />
-<meta name="author" content="Chelsy Xie (Analysis &amp; Report)" />
 
 <meta name="date" content="2017-09-14" />
 
@@ -286,12 +281,17 @@ div.tocify {
 
 
 <h1 class="title toc-ignore">Swap2and3 Search Test Analysis</h1>
-<h4 class="author"><em><a href = 'https://meta.wikimedia.org/wiki/User:EBernhardson_(WMF)'>Erik Bernhardson</a> (Engineering)</em></h4>
-<h4 class="author"><em><a href = 'https://meta.wikimedia.org/wiki/User:TJones_(WMF)'>Trey Jones</a> (Engineering &amp; Review)</em></h4>
-<h4 class="author"><em><a href = 'https://meta.wikimedia.org/wiki/User:MPopov_(WMF)'>Mikhail Popov</a> (Review)</em></h4>
-<h4 class="author"><em><a href = 'https://meta.wikimedia.org/wiki/User:DTankersley_(WMF)'>Deb Tankersley</a> (Product Management)</em></h4>
-<h4 class="author"><em><a href = 'https://meta.wikimedia.org/wiki/User:CXie_(WMF)'>Chelsy Xie</a> (Analysis &amp; Report)</em></h4>
-<h4 class="date"><em>14 September 2017</em></h4>
+<h4 class="author"><em>Erik Bernhardson</em></h4>
+<address class="author_afil">
+Senior Software Engineer, Wikimedia Foundation<br><h4 class="author"><em>Trey Jones</em></h4>
+<address class="author_afil">
+Senior Software Engineer, Wikimedia Foundation<br><h4 class="author"><em>Chelsy Xie</em></h4>
+<address class="author_afil">
+Data Analyst, Wikimedia Foundation<br><h4 class="author"><em>Mikhail Popov</em></h4>
+<address class="author_afil">
+Data Analyst, Wikimedia Foundation<br><h4 class="author"><em>Deb Tankersley</em></h4>
+<address class="author_afil">
+Product Manager (Analysis, Search Frontend), Wikimedia Foundation<br><h4 class="date"><em>14 September 2017</em></h4>
 <div class="abstract">
 <p class="abstract">Abstract</p>
 <p>Wikimedia Technology’s Search Platform team ran an A/B test from April 7 to April 25, 2016 to see how much our users care about the position of the result vs the actual content of the result by swapping the second and third search results. We found that position 2 had a higher clickthrough rate than position 3 in both groups, but the clickthrough rate of the 3rd result was higher in the test group than in the control group. We also found that test group users were less likely to click on the 2nd result first than the control group and were more likely to click on the 3rd result first. Based on the resultsof this analysis, we think that both position and quality matter in user behavior, but with different weights. Further experiments are needed to figure out the quantitative relationship between user behavior and these two factors.</p>
@@ -317,8 +317,8 @@ $(function() {
 <p>
 { <a href="https://github.com/wikimedia-research/Discovery-Search-Test-Swap2and3/blob/master/docs/index.Rmd">RMarkdown Source</a> | <a href="https://github.com/wikimedia-research/Discovery-Search-Test-Swap2and3">Analysis Codebase</a> }
 </p>
-<div id="data" class="section level2">
-<h2>Data</h2>
+<div id="data" class="section level1">
+<h1>Data</h1>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">data1 &lt;-<span class="st"> </span>data1 <span class="op">%&gt;%</span><span class="st"> </span><span class="kw">filter</span>(
   (event_action <span class="op">==</span><span class="st"> &#39;searchResultPage&#39;</span> <span class="op">&amp;</span><span class="st"> </span><span class="op">!</span><span class="kw">is.na</span>(event_hitsReturned)) <span class="op">|</span>
 <span class="st">  </span>(event_action <span class="op">==</span><span class="st"> &#39;click&#39;</span> <span class="op">&amp;</span><span class="st"> </span><span class="op">!</span><span class="kw">is.na</span>(event_position) <span class="op">&amp;</span><span class="st"> </span>event_position <span class="op">&gt;</span><span class="st"> </span><span class="op">-</span><span class="dv">1</span>) <span class="op">|</span>
@@ -510,10 +510,10 @@ clickedResults<span class="op">$</span>status &lt;-<span class="st"> </span><spa
 <li>There were 6474 out of 301,603 search sessions falling into both control and test buckets. We deleted those sessions in the data cleansing step.</li>
 </ul>
 </div>
-<div id="results" class="section level2">
-<h2>Results</h2>
-<div id="engagement" class="section level3">
-<h3>Engagement</h3>
+<div id="results" class="section level1">
+<h1>Results</h1>
+<div id="engagement" class="section level2">
+<h2>Engagement</h2>
 <p>Firstly, we compared the overall clickthrough rate between control and test group. We’ve checked that there is no significant difference in zero results rate between these two groups. The plot below shows that for each session, the control group has a significantly higher engagement rate; for each search results page, the test group has higher engagement, but the difference is not significant.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Compare overall CTR</span>
 <span class="co"># per session:</span>
@@ -620,8 +620,8 @@ p_ctr23_serp &lt;-<span class="st"> </span>engagement_2and3_serp[, <span class="
 </p>
 </div>
 </div>
-<div id="first-clicked-results-position" class="section level3">
-<h3>First Clicked Result’s Position</h3>
+<div id="first-clicked-results-position" class="section level2">
+<h2>First Clicked Result’s Position</h2>
 <p>We can see that test group users were less likely to click on the second result first than the control group, while they were more likely to click on the third result first. There is no significant difference in other positions.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">safe_ordinals &lt;-<span class="st"> </span><span class="cf">function</span>(x) {
   <span class="kw">return</span>(<span class="kw">vapply</span>(x, toOrdinal<span class="op">::</span>toOrdinal, <span class="st">&quot;&quot;</span>))
@@ -661,8 +661,8 @@ first_clicked <span class="op">%&gt;%</span>
 </p>
 </div>
 </div>
-<div id="dwell-time-per-visited-page" class="section level3">
-<h3>Dwell Time per Visited Page</h3>
+<div id="dwell-time-per-visited-page" class="section level2">
+<h2>Dwell Time per Visited Page</h2>
 <p>When we compared the overall survival curves between the two groups, we found that the test group users were significantly more likely to stay longer on visited pages.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Compare overall dwell time </span>
 temp &lt;-<span class="st"> </span>clickedResults
@@ -693,8 +693,8 @@ survminer<span class="op">::</span><span class="kw">ggsurvplot</span>(fit_2and3,
 </div>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">rm</span>(temp)</code></pre></div>
 </div>
-<div id="scroll" class="section level3">
-<h3>Scroll</h3>
+<div id="scroll" class="section level2">
+<h2>Scroll</h2>
 <p>We found that users in the test group were significantly more likely to scroll on the visited page.</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Compare overall scroll proportion</span>
 scroll_overall &lt;-<span class="st"> </span>clickedResults <span class="op">%&gt;%</span>
@@ -759,14 +759,44 @@ scroll_2and3 <span class="op">%&gt;%</span>
 </div>
 </div>
 </div>
-<div id="discussion" class="section level2">
-<h2>Discussion</h2>
+<div id="discussion" class="section level1">
+<h1>Discussion</h1>
 <p>Overall, we found that user engagement decreased by swapping the second and the third search results. Position 2 had a higher clickthrough rate than position 3 in both groups. However, when comparing the same position between groups the clickthrough rate of third results in the test group was higher and the clickthrough rate of second results in the test group was lower. We also found that test group users were less likely to click on the 2nd result first than the control group, while they are more likely to click on the 3rd result first. Based on these analysis results, we believe that it is not an either/or situation with position (order displayed) and “quality” (as determined by Cirrus). We suspect that <em>both</em> position <em>and</em> quality matter in user behavior, but with different weights. <a href="https://phabricator.wikimedia.org/T167824">Further experiments</a> are needed to figure out the quantitative relationship between user behavior and these two factors.</p>
 <p>It seems a little bit counter intuitive that the group with a lower engagement rate tended to stay longer and was more likely to scroll on the visited page, but we saw a similar case in <a href="https://wikimedia-research.github.io/Discovery-Search-2ndTest-BM25_jazhth">another test</a> before. This may be a case of the <a href="https://en.wikipedia.org/wiki/Self-selection_bias">self-selection bias</a> that users who click through in a probably less relevant group – the test group – may be different from users who click through in the control group in motivation, experience or other factors. Further research is needed.</p>
 <p>Additionally, instead of making explicit control buckets, we simply treated those users who didn’t get assigned to the test group as control group users. We suspect that this behavior resulted in us putting all users whose browsers had a cached version of event logging JavaScript into the control group automatically, so some metrics may be biased.</p>
 </div>
+<div id="references" class="section level1 unnumbered">
+<h1>References</h1>
+<div id="refs" class="references">
+<div id="ref-R-rmarkdown">
+<p>Allaire, JJ, Joe Cheng, Yihui Xie, Jonathan McPherson, Winston Chang, Jeff Allen, Hadley Wickham, Aron Atkins, Rob Hyndman, and Ruben Arslan. 2016. <em>Rmarkdown: Dynamic Documents for R</em>. <a href="http://rmarkdown.rstudio.com" class="uri">http://rmarkdown.rstudio.com</a>.</p>
+</div>
+<div id="ref-R-magrittr">
+<p>Bache, Stefan Milton, and Hadley Wickham. 2014. <em>Magrittr: A Forward-Pipe Operator for R</em>. <a href="https://CRAN.R-project.org/package=magrittr" class="uri">https://CRAN.R-project.org/package=magrittr</a>.</p>
+</div>
+<div id="ref-R-binom">
+<p>Dorai-Raj, Sundar. 2014. <em>Binom: Binomial Confidence Intervals for Several Parameterizations</em>. <a href="https://CRAN.R-project.org/package=binom" class="uri">https://CRAN.R-project.org/package=binom</a>.</p>
+</div>
+<div id="ref-R-wmf">
+<p>Keyes, Oliver, and Mikhail Popov. 2017. <em>Wmf: R Code for Wikimedia Foundation Internal Usage</em>. <a href="https://phabricator.wikimedia.org/diffusion/1821/" class="uri">https://phabricator.wikimedia.org/diffusion/1821/</a>.</p>
+</div>
+<div id="ref-R-survival">
+<p>Therneau, Terry M. 2015. <em>A Package for Survival Analysis in S</em>. <a href="https://CRAN.R-project.org/package=survival" class="uri">https://CRAN.R-project.org/package=survival</a>.</p>
+</div>
+<div id="ref-R-ggplot2">
+<p>Wickham, Hadley. 2009. <em>Ggplot2: Elegant Graphics for Data Analysis</em>. Springer-Verlag New York. <a href="http://ggplot2.org" class="uri">http://ggplot2.org</a>.</p>
+</div>
+<div id="ref-R-tidyr">
+<p>———. 2017. <em>Tidyr: Easily Tidy Data with ’Spread()’ and ’Gather()’ Functions</em>. <a href="https://CRAN.R-project.org/package=tidyr" class="uri">https://CRAN.R-project.org/package=tidyr</a>.</p>
+</div>
+<div id="ref-R-dplyr">
+<p>Wickham, Hadley, and Romain Francois. 2016. <em>Dplyr: A Grammar of Data Manipulation</em>. <a href="https://CRAN.R-project.org/package=dplyr" class="uri">https://CRAN.R-project.org/package=dplyr</a>.</p>
+</div>
+</div>
+</div>
 
-<div id="wmf" title="By Wikimedia Foundation (Wikimedia Foundation) [CC BY-SA 3.0 (http://creativecommons.org/licenses/by-sa/3.0)], via Wikimedia Commons"></div>
+<div id="wmf" title="By Wikimedia Foundation (Wikimedia Foundation) [CC BY-SA 3.0 (http://creativecommons.org/licenses/by-sa/3.0)], via Wikimedia Commons">
+</div>
 
 
 </div>
